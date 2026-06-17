@@ -4,7 +4,7 @@
     <title>Bounce & Collect</title>
     <style>
         body { 
-            background: #1a1a1a; 
+            background: radial-gradient(circle at top, #5a6cff 0%, #1a1a1a 45%, #0c121f 100%);
             margin: 0; 
             display: flex; 
             flex-direction: column; 
@@ -12,8 +12,27 @@
             justify-content: center;
             font-family: 'Segoe UI', sans-serif;
             color: white;
-            overflow: hidden;
-            height: 100vh;
+            overflow: auto;
+            min-height: 100vh;
+        }
+
+        .menu-container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            max-height: none;
+        }
+
+        #backgroundGlow {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.12), transparent 18%),
+                        radial-gradient(circle at 70% 30%, rgba(108, 92, 231, 0.18), transparent 20%),
+                        radial-gradient(circle at 50% 80%, rgba(46, 204, 113, 0.14), transparent 24%);
+            z-index: -1;
         }
 
         /* Menu Screen */
@@ -23,12 +42,13 @@
             align-items: center;
             justify-content: center;
             width: 100%;
-            height: 100%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             z-index: 1000;
         }
 
-        #menuScreen.hidden {
+        #menuScreen.hidden,
+        #shopScreen.hidden,
+        #gameScreen.hidden {
             display: none;
         }
 
@@ -48,9 +68,179 @@
         }
 
         .menu-subtitle {
-            font-size: 1.2rem;
-            color: #bdc3c7;
-            margin-bottom: 40px;
+            font-size: 1.1rem;
+            color: #dfe6ed;
+            margin-bottom: 20px;
+        }
+
+        .menu-top-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .menu-stat {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 10px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.12);
+            font-size: 0.95rem;
+            min-width: 140px;
+        }
+
+        .shop-section {
+            margin-top: 30px;
+            text-align: left;
+        }
+
+        .shop-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: 0.02em;
+        }
+
+        .shop-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 14px;
+        }
+
+        .shop-card {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 180px;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .shop-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255,255,255,0.24);
+        }
+
+        .shop-card.owned {
+            border-color: #2ecc71;
+        }
+
+        .shop-card.equipped {
+            border-color: #f1c40f;
+            box-shadow: 0 0 20px rgba(241, 196, 15, 0.15);
+        }
+
+        .shop-card h3 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .shop-card p {
+            margin: 0;
+            color: #d0d8e4;
+            font-size: 0.95rem;
+        }
+
+        .shop-card small {
+            color: #aab2cc;
+        }
+
+        .shop-card button {
+            margin-top: auto;
+            border: none;
+            padding: 10px 0;
+            width: 100%;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .shop-card button.buy {
+            background: #3498db;
+            color: white;
+        }
+
+        .shop-card button.equip {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .shop-card button:disabled {
+            background: rgba(255,255,255,0.12);
+            color: rgba(255,255,255,0.65);
+            cursor: not-allowed;
+        }
+
+        .shop-open-btn {
+            border: none;
+            padding: 12px 22px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #8d6a3f 0%, #5e3a1a 100%);
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+            transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .shop-open-btn:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #ad824c 0%, #7f4d1c 100%);
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+        }
+
+        .shop-open-btn::before {
+            content: '🧱';
+            margin-right: 8px;
+        }
+
+        .shop-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #291a1a 0%, #3e2b1f 100%);
+            z-index: 1000;
+        }
+
+        .shop-screen.hidden {
+            display: none;
+        }
+
+        .shop-header {
+            margin-bottom: 20px;
+        }
+
+        .shop-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .shop-controls .page-label {
+            color: #fdf6e3;
+        }
+
+        .shop-stat {
+            margin-bottom: 20px;
+        }
+
+        .back-btn.shop-back {
+            background: #f39c12;
+        }
+
+        .back-btn.shop-back:hover {
+            background: #d35400;
         }
 
         .levels-grid {
@@ -84,6 +274,46 @@
             transform: scale(0.95);
         }
 
+        .level-btn.locked {
+            filter: grayscale(0.7);
+            background: #7f8c8d;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .page-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .page-btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.12);
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.25s ease;
+        }
+
+        .page-btn:hover {
+            background: rgba(255, 255, 255, 0.22);
+        }
+
+        .page-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .page-label {
+            font-size: 1rem;
+            color: #ecf0f1;
+        }
+
         /* Game Screen */
         #gameScreen {
             display: flex;
@@ -102,6 +332,23 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+        }
+
+        .game-panel {
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 16px;
+        }
+
+        .game-panel span {
+            background: rgba(255,255,255,0.08);
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #ecf0f1;
+            font-size: 0.95rem;
         }
 
         .header { 
@@ -150,11 +397,42 @@
 </head>
 <body>
     <!-- Menu Screen -->
+    <div id="backgroundGlow"></div>
+
     <div id="menuScreen">
         <div class="menu-container">
             <div class="menu-title">🎮 Bounce & Collect</div>
-            <div class="menu-subtitle">Select a Level</div>
+            <div class="menu-subtitle">Complete levels to unlock the next one and then visit the shop to change your look.</div>
+            <div class="menu-top-row">
+                <div class="menu-stat">Unlocked: <span id="unlockedCount">1</span>/<span id="totalCount">24</span></div>
+                <div class="menu-stat">Coins Collected: <span id="wallet">0</span></div>
+                <div class="menu-stat">Page: <span id="pageLabel">1/2</span></div>
+                <button class="shop-open-btn" id="shopBtn">� Shop</button>
+            </div>
             <div class="levels-grid" id="levelsGrid"></div>
+            <div class="page-controls" id="pageControls">
+                <button class="page-btn" id="prevPage">← Prev</button>
+                <button class="page-btn" id="nextPage">Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="shopScreen" class="hidden shop-screen">
+        <div class="menu-container">
+            <div class="shop-header">
+                <div class="menu-title">🧰 Shop</div>
+                <div class="menu-subtitle">Use coins to unlock costumes and trails.</div>
+            </div>
+            <div class="shop-stat menu-top-row">
+                <div class="menu-stat">Coins: <span id="walletShop">0</span></div>
+                <button class="back-btn shop-back" id="backShopBtn">← Back</button>
+            </div>
+            <div class="shop-controls">
+                <button class="page-btn" id="shopPrevPage">Costumes</button>
+                <span class="page-label" id="shopPageLabel">Costumes</span>
+                <button class="page-btn" id="shopNextPage">Trails</button>
+            </div>
+            <div class="shop-grid" id="shopGrid"></div>
         </div>
     </div>
 
@@ -162,7 +440,7 @@
     <div id="gameScreen" class="hidden">
         <div class="game-wrapper">
             <div class="header">
-                <span class="stats">Level: <span id="lvl">1</span> | Coins: <span id="cnt">0</span>/3</span>
+                <span class="stats">Level: <span id="lvl">1</span> | Coins: <span id="cnt">0</span>/<span id="cntTotal">3</span></span>
                 <button class="back-btn" id="backBtn">← Back to Menu</button>
             </div>
             <canvas id="gameCanvas" width="600" height="400"></canvas>

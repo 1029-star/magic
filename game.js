@@ -2,55 +2,263 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const lvlText = document.getElementById('lvl');
 const cntText = document.getElementById('cnt');
+const cntTotalText = document.getElementById('cntTotal');
 const menuScreen = document.getElementById('menuScreen');
+const shopScreen = document.getElementById('shopScreen');
 const gameScreen = document.getElementById('gameScreen');
 const levelsGrid = document.getElementById('levelsGrid');
+const shopGrid = document.getElementById('shopGrid');
+const shopBtn = document.getElementById('shopBtn');
+const shopPrevPageBtn = document.getElementById('shopPrevPage');
+const shopNextPageBtn = document.getElementById('shopNextPage');
+const shopPageLabel = document.getElementById('shopPageLabel');
 const backBtn = document.getElementById('backBtn');
+const resetBtn = document.getElementById('resetBtn');
+const backShopBtn = document.getElementById('backShopBtn');
+const prevPageBtn = document.getElementById('prevPage');
+const nextPageBtn = document.getElementById('nextPage');
+const pageLabel = document.getElementById('pageLabel');
+const walletText = document.getElementById('wallet');
+const walletShopText = document.getElementById('walletShop');
+const unlockedCountText = document.getElementById('unlockedCount');
+const totalCountText = document.getElementById('totalCount');
 
 // Number of available levels
-const TOTAL_LEVELS = 10;
+const TOTAL_LEVELS = 24;
+const LEVELS_PER_PAGE = 12;
+const DIRECTION_CHANGE_COOLDOWN_MS = 5000; // 5s cooldown between direction changes
+let currentMenuPage = 1;
+const PROGRESS_DATA_KEY = 'magicProgress';
+
+const SHOP_ITEMS = [
+    { id: 'sparkTrail', type: 'trail', name: 'Spark Trail', description: 'Leaves a bright blue spark trail as you move.', cost: 5 },
+    { id: 'rainbowTrail', type: 'trail', name: 'Rainbow Trail', description: 'A colorful streak follows the ball with every bounce.', cost: 8 },
+    { id: 'fireTrail', type: 'trail', name: 'Fire Trail', description: 'A blazing flame trail that flickers behind you.', cost: 7 },
+    { id: 'iceTrail', type: 'trail', name: 'Ice Trail', description: 'A cool icy trail with a frosty glow.', cost: 7 },
+    { id: 'shadowCostume', type: 'costume', name: 'Shadow Costume', description: 'A sleek dark costume with a glowing outline.', cost: 6 },
+    { id: 'goldenCostume', type: 'costume', name: 'Golden Costume', description: 'A shiny gold look that glows when moving.', cost: 10 },
+    { id: 'neonCostume', type: 'costume', name: 'Neon Costume', description: 'Bright neon lines pulse around the ball.', cost: 7 },
+    { id: 'ghostCostume', type: 'costume', name: 'Ghost Costume', description: 'A ghostly pale look that leaves a soft trail.', cost: 8 }
+];
+
+const DEFAULT_PROGRESS = {
+    unlockedLevel: 1,
+    wallet: 0,
+    ownedItems: [],
+    equippedTrail: null,
+    equippedCostume: null
+};
+
+let progress = loadProgress();
+
+function loadProgress() {
+    if (typeof localStorage === 'undefined') return { ...DEFAULT_PROGRESS };
+    try {
+        const raw = localStorage.getItem(PROGRESS_DATA_KEY);
+        if (!raw) return { ...DEFAULT_PROGRESS };
+        const stored = JSON.parse(raw);
+        return {
+            unlockedLevel: Math.min(TOTAL_LEVELS, Math.max(1, stored.unlockedLevel || 1)),
+            wallet: Math.max(0, stored.wallet || 0),
+            ownedItems: Array.isArray(stored.ownedItems) ? stored.ownedItems : [...DEFAULT_PROGRESS.ownedItems],
+            equippedTrail: typeof stored.equippedTrail === 'string' ? stored.equippedTrail : DEFAULT_PROGRESS.equippedTrail,
+            equippedCostume: typeof stored.equippedCostume === 'string' ? stored.equippedCostume : DEFAULT_PROGRESS.equippedCostume
+        };
+    } catch (error) {
+        return { ...DEFAULT_PROGRESS };
+    }
+}
+
+function saveProgress() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+        localStorage.setItem(PROGRESS_DATA_KEY, JSON.stringify(progress));
+    } catch (error) {
+        // Ignore storage failures
+    }
+}
+
+function resetProgressData() {
+    if (!confirm('Reset all progress, costumes, trails, and unlocked levels?')) return;
+    progress = { ...DEFAULT_PROGRESS };
+    saveProgress();
+    currentMenuPage = 1;
+    game.unlockedLevels = progress.unlockedLevel;
+    game.returnToMenu();
+    showMenuPage(1);
+    updateMenuStats();
+    updateShopUI();
+}
+
+function addWallet(amount) {
+    progress.wallet = Math.max(0, progress.wallet + amount);
+    saveProgress();
+    updateMenuStats();
+}
+
+function buyShopItem(itemId) {
+    const item = SHOP_ITEMS.find(item => item.id === itemId);
+    if (!item || progress.ownedItems.includes(itemId) || progress.wallet < item.cost) return;
+    progress.wallet -= item.cost;
+    progress.ownedItems.push(itemId);
+    saveProgress();
+    updateMenuStats();
+    updateShopUI();
+}
+
+function equipShopItem(itemId) {
+    if (!progress.ownedItems.includes(itemId)) return;
+    const item = SHOP_ITEMS.find(item => item.id === itemId);
+    if (!item) return;
+
+    if (item.type === 'trail') {
+        progress.equippedTrail = itemId;
+    } else if (item.type === 'costume') {
+        progress.equippedCostume = itemId;
+    }
+    saveProgress();
+    updateShopUI();
+}
+
+function updateMenuStats() {
+    if (unlockedCountText) unlockedCountText.innerText = String(progress.unlockedLevel);
+    if (totalCountText) totalCountText.innerText = String(TOTAL_LEVELS);
+    if (walletText) walletText.innerText = String(progress.wallet);
+    if (walletShopText) walletShopText.innerText = String(progress.wallet);
+    updateMenuButtons();
+}
+
+function updateShopUI() {
+    if (!shopGrid) return;
+    shopGrid.innerHTML = '';
+    const allowedType = shopPage === 'costume' ? 'costume' : 'trail';
+
+    SHOP_ITEMS.filter(item => item.type === allowedType).forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'shop-card';
+        if (progress.ownedItems.includes(item.id)) card.classList.add('owned');
+        if ((item.type === 'trail' && progress.equippedTrail === item.id) ||
+            (item.type === 'costume' && progress.equippedCostume === item.id)) {
+            card.classList.add('equipped');
+        }
+
+        const title = document.createElement('h3');
+        title.textContent = item.name;
+        card.appendChild(title);
+
+        const desc = document.createElement('p');
+        desc.textContent = item.description;
+        card.appendChild(desc);
+
+        const costLine = document.createElement('small');
+        costLine.textContent = `Cost: ${item.cost} coins`;
+        card.appendChild(costLine);
+
+        const button = document.createElement('button');
+        if (progress.ownedItems.includes(item.id)) {
+            button.textContent = progress.equippedTrail === item.id || progress.equippedCostume === item.id ? 'Equipped' : 'Equip';
+            button.className = 'equip';
+            button.disabled = progress.equippedTrail === item.id || progress.equippedCostume === item.id;
+            button.addEventListener('click', () => equipShopItem(item.id));
+        } else {
+            button.textContent = `Buy (${item.cost})`;
+            button.className = 'buy';
+            button.disabled = progress.wallet < item.cost;
+            button.addEventListener('click', () => buyShopItem(item.id));
+        }
+        card.appendChild(button);
+        shopGrid.appendChild(card);
+    });
+}
+
+function getPlayerColor() {
+    if (progress.equippedCostume === 'shadowCostume') return '#34495e';
+    if (progress.equippedCostume === 'goldenCostume') return '#f1c40f';
+    if (progress.equippedCostume === 'neonCostume') return '#ff49dc';
+    if (progress.equippedCostume === 'ghostCostume') return '#dfe7f5';
+    return '#e74c3c';
+}
+
+function getTrailColor(alpha = 1) {
+    if (progress.equippedTrail === 'rainbowTrail') return null;
+    if (progress.equippedTrail === 'sparkTrail') return `rgba(52, 152, 219, ${alpha})`;
+    if (progress.equippedTrail === 'fireTrail') return `rgba(241, 196, 15, ${alpha})`;
+    if (progress.equippedTrail === 'iceTrail') return `rgba(174, 214, 241, ${alpha})`;
+    return `rgba(255, 255, 255, ${alpha})`;
+}
+
+const LEVEL_PRESETS = Array.from({ length: TOTAL_LEVELS }, (_, index) => {
+    const level = index + 1;
+    const coinCount = 3 + Math.floor(index / 6);
+    const exitX = 520 - (index % 4) * 80;
+    const exitY = 320 - Math.floor(index / 4) * 25;
+    const coins = Array.from({ length: coinCount }, (__, coinIndex) => ({
+        x: 80 + ((level * 73 + coinIndex * 111) % 450),
+        y: 80 + ((level * 59 + coinIndex * 97) % 230),
+        r: 8
+    }));
+
+    return {
+        speed: 3 + level * 0.35,
+        playerStart: {
+            x: 50 + (index % 4) * 20,
+            y: 50 + Math.floor(index / 4) * 15
+        },
+        exit: {
+            x: exitX,
+            y: exitY,
+            w: 40,
+            h: 40
+        },
+        coins
+    };
+});
 
 class Game {
     constructor() {
         this.level = 1;
+        this.unlockedLevels = progress.unlockedLevel;
         this.gameRunning = false;
         this.ballLaunched = false;
         this.animationId = null;
         this.launchDirection = { x: 1, y: 1 }; // Default direction: down-right
+        this.trailPoints = [];
         this.resetLevel();
     }
 
     resetLevel() {
-        const speed = 3 + this.level;
+        const config = LEVEL_PRESETS[this.level - 1];
+        const speed = config.speed;
         this.player = {
-            x: 50,
-            y: 50,
+            x: config.playerStart.x,
+            y: config.playerStart.y,
             r: 12,
             vx: speed,
             vy: speed,
-            color: '#1abc9c'
+            color: getPlayerColor()
         };
+        this.trailPositions = [];
         this.launchVx = speed;
         this.launchVy = speed;
 
-        this.coins = [];
+        this.coins = config.coins.map(coin => ({ ...coin }));
         this.coinsCollected = 0;
-        this.exit = { x: 530, y: 330, w: 40, h: 40, open: false };
+        this.requiredCoins = this.coins.length;
+        this.exit = { ...config.exit, open: false };
         this.ballLaunched = false;
+        this.directionChangeBlockedUntil = 0;
+        this.trailPoints = [{ x: this.player.x, y: this.player.y }];
 
         lvlText.innerText = this.level;
-        cntText.innerText = "0";
-
-        for (let i = 0; i < 3; i++) {
-            this.coins.push({
-                x: 50 + Math.random() * (canvas.width - 100),
-                y: 50 + Math.random() * (canvas.height - 100),
-                r: 8
-            });
-        }
+        cntText.innerText = '0';
+        if (cntTotalText) cntTotalText.innerText = String(this.requiredCoins);
     }
 
     startLevel(levelNum) {
+        if (levelNum > this.unlockedLevels) {
+            return;
+        }
+
         this.level = levelNum;
         this.gameRunning = true;
         this.resetLevel();
@@ -68,11 +276,13 @@ class Game {
             return;
         }
 
-        // Update velocity based on held keys (allow mid-air direction changes)
+        // Update velocity based on held keys (allow mid-air direction changes for a short time)
         const speed = 3 + this.level;
         let newVx = this.player.vx;
         let newVy = this.player.vy;
-        
+        const now = performance.now();
+        const canChangeDirection = !this.ballLaunched || (now >= this.directionChangeBlockedUntil);
+
         // Get current direction from held keys
         let dirX = 0, dirY = 0;
         if (keysPressed['KeyW']) dirY -= 1;
@@ -84,19 +294,22 @@ class Game {
         if (keysPressed['KeyZ']) { dirX -= 1; dirY += 1; }
         if (keysPressed['KeyX']) { dirX += 1; dirY += 1; }
         if (keysPressed['KeyC']) { dirX = 0; dirY = 0; }
-        
-        // Apply new direction if keys are held
-        if (dirX !== 0 || dirY !== 0) {
-            // Normalize diagonal movement
+
+        // Apply new direction if keys are held and direction changes are still allowed
+        if (canChangeDirection && (dirX !== 0 || dirY !== 0)) {
             const magnitude = Math.sqrt(dirX * dirX + dirY * dirY);
             newVx = (dirX / magnitude) * speed;
             newVy = (dirY / magnitude) * speed;
             this.player.vx = newVx;
             this.player.vy = newVy;
+            // start cooldown so player can't change direction again immediately
+            this.directionChangeBlockedUntil = now + DIRECTION_CHANGE_COOLDOWN_MS;
         }
 
         this.player.x += this.player.vx;
         this.player.y += this.player.vy;
+        this.trailPoints.push({ x: this.player.x, y: this.player.y });
+        if (this.trailPoints.length > 28) this.trailPoints.shift();
 
         // Boundary Bouncing
         if (this.player.x + this.player.r > canvas.width || this.player.x - this.player.r < 0) this.player.vx *= -1;
@@ -135,7 +348,7 @@ class Game {
             if (dist < this.player.r + coin.r) {
                 this.coinsCollected++;
                 cntText.innerText = this.coinsCollected;
-                if (this.coinsCollected >= 3) this.exit.open = true;
+                if (this.coinsCollected >= this.requiredCoins) this.exit.open = true;
                 return false;
             }
             return true;
@@ -145,12 +358,11 @@ class Game {
         if (this.exit.open) {
             if (this.player.x > this.exit.x && this.player.x < this.exit.x + this.exit.w &&
                 this.player.y > this.exit.y && this.player.y < this.exit.y + this.exit.h) {
-                // Level complete - check if there's a next level
                 if (this.level < TOTAL_LEVELS) {
+                    this.unlockLevel(this.level + 1);
                     this.level++;
                     this.resetLevel();
                 } else {
-                    // Game complete!
                     this.completeGame();
                 }
             }
@@ -159,6 +371,33 @@ class Game {
 
     draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Render Trail
+        if (progress.equippedTrail && this.trailPositions.length > 1) {
+            const trailColor = getTrailColor();
+            if (trailColor === null) {
+                for (let i = 0; i < this.trailPositions.length - 1; i++) {
+                    const hue = (i / this.trailPositions.length * 360) % 360;
+                    ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(this.trailPositions[i].x, this.trailPositions[i].y);
+                    ctx.lineTo(this.trailPositions[i + 1].x, this.trailPositions[i + 1].y);
+                    ctx.stroke();
+                }
+            } else {
+                for (let i = 0; i < this.trailPositions.length - 1; i++) {
+                    const alpha = i / this.trailPositions.length;
+                    const colorWithAlpha = trailColor.replace(/[\d.]+\)$/g, alpha + ')');
+                    ctx.strokeStyle = colorWithAlpha;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(this.trailPositions[i].x, this.trailPositions[i].y);
+                    ctx.lineTo(this.trailPositions[i + 1].x, this.trailPositions[i + 1].y);
+                    ctx.stroke();
+                }
+            }
+        }
         
         // Render Exit (Door on Ledge)
         this.drawDoorOnLedge();
@@ -175,10 +414,33 @@ class Game {
             ctx.closePath();
         });
 
+        // Render Trail
+        if (this.trailPoints.length > 1) {
+            ctx.save();
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.globalCompositeOperation = 'lighter';
+            for (let i = 1; i < this.trailPoints.length; i++) {
+                const start = this.trailPoints[i - 1];
+                const end = this.trailPoints[i];
+                const alpha = i / this.trailPoints.length;
+                const color = progress.equippedTrail === 'rainbowTrail'
+                    ? `hsla(${(i / this.trailPoints.length) * 360}, 100%, 60%, ${alpha * 0.7})`
+                    : getTrailColor(alpha * 0.7);
+                ctx.strokeStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(start.x, start.y);
+                ctx.lineTo(end.x, end.y);
+                ctx.stroke();
+                ctx.closePath();
+            }
+            ctx.restore();
+        }
+
         // Render Player
         ctx.beginPath();
         ctx.arc(this.player.x, this.player.y, this.player.r, 0, Math.PI * 2);
-        ctx.fillStyle = this.player.color;
+        ctx.fillStyle = getPlayerColor();
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
@@ -351,12 +613,25 @@ class Game {
         menuScreen.classList.remove('hidden');
     }
 
+    unlockLevel(levelNumber) {
+        if (levelNumber > progress.unlockedLevel && levelNumber <= TOTAL_LEVELS) {
+            progress.unlockedLevel = levelNumber;
+            saveProgress();
+            this.unlockedLevels = progress.unlockedLevel;
+            addWallet(3);
+            updateMenuStats();
+            updateShopUI();
+        }
+    }
+
     launchBall() {
         if (!this.ballLaunched) {
             this.ballLaunched = true;
             const speed = 3 + this.level;
             this.player.vx = this.launchDirection.x * speed;
             this.player.vy = this.launchDirection.y * speed;
+            // Block direction changes for the first DIRECTION_CHANGE_COOLDOWN_MS after launch
+            this.directionChangeBlockedUntil = performance.now() + DIRECTION_CHANGE_COOLDOWN_MS;
         }
     }
 
@@ -368,6 +643,51 @@ class Game {
 
 const game = new Game();
 
+function getTotalPages() {
+    return Math.ceil(TOTAL_LEVELS / LEVELS_PER_PAGE);
+}
+
+function updateMenuButtons() {
+    const firstLevel = (currentMenuPage - 1) * LEVELS_PER_PAGE + 1;
+    const lastLevel = Math.min(currentMenuPage * LEVELS_PER_PAGE, TOTAL_LEVELS);
+
+    const buttons = levelsGrid.querySelectorAll('button');
+    buttons.forEach((btn, index) => {
+        const levelNumber = index + 1;
+        const isOnPage = levelNumber >= firstLevel && levelNumber <= lastLevel;
+        btn.style.display = isOnPage ? 'inline-flex' : 'none';
+        btn.disabled = levelNumber > game.unlockedLevels;
+
+        if (btn.disabled) {
+            btn.classList.add('locked');
+            btn.title = 'Unlock the previous level to play this one';
+        } else {
+            btn.classList.remove('locked');
+            btn.title = '';
+        }
+    });
+
+    pageLabel.innerText = `Page ${currentMenuPage}/${getTotalPages()}`;
+    prevPageBtn.disabled = currentMenuPage <= 1;
+    nextPageBtn.disabled = currentMenuPage >= getTotalPages();
+}
+
+function showMenuPage(pageNumber) {
+    currentMenuPage = Math.max(1, Math.min(getTotalPages(), pageNumber));
+    updateMenuButtons();
+}
+
+// Help the player switch between pages in the shop
+let shopPage = 'costume';
+
+function showShopPage(pageName) {
+    shopPage = pageName;
+    shopPageLabel.innerText = pageName === 'costume' ? 'Costumes' : 'Trails';
+    shopPrevPageBtn.disabled = pageName === 'costume';
+    shopNextPageBtn.disabled = pageName === 'trail';
+    updateShopUI();
+}
+
 // Initialize menu
 function initializeMenu() {
     levelsGrid.innerHTML = '';
@@ -378,6 +698,25 @@ function initializeMenu() {
         btn.onclick = () => game.startLevel(i);
         levelsGrid.appendChild(btn);
     }
+
+    prevPageBtn.addEventListener('click', () => showMenuPage(currentMenuPage - 1));
+    nextPageBtn.addEventListener('click', () => showMenuPage(currentMenuPage + 1));
+    resetBtn.addEventListener('click', resetProgressData);
+    shopBtn.addEventListener('click', () => {
+        menuScreen.classList.add('hidden');
+        shopScreen.classList.remove('hidden');
+        showShopPage('costume');
+    });
+    shopPrevPageBtn.addEventListener('click', () => showShopPage('costume'));
+    shopNextPageBtn.addEventListener('click', () => showShopPage('trail'));
+    backShopBtn.addEventListener('click', () => {
+        shopScreen.classList.add('hidden');
+        menuScreen.classList.remove('hidden');
+    });
+
+    showMenuPage(1);
+    updateMenuStats();
+    updateShopUI();
 }
 
 // Back button handler
