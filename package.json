@@ -1,0 +1,12 @@
+{
+  "name": "bounce-collect",
+  "version": "1.0.0",
+  "description": "A standalone bouncing ball collection game.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^28.0.0"
+  }
+}
