@@ -12,6 +12,9 @@ const shopBtn = document.getElementById('shopBtn');
 const shopPrevPageBtn = document.getElementById('shopPrevPage');
 const shopNextPageBtn = document.getElementById('shopNextPage');
 const shopPageLabel = document.getElementById('shopPageLabel');
+const settingsScreen = document.getElementById('settingsScreen');
+const settingsBtn = document.getElementById('settingsBtn');
+const backSettingsBtn = document.getElementById('backSettingsBtn');
 const backBtn = document.getElementById('backBtn');
 const resetBtn = document.getElementById('resetBtn');
 const backShopBtn = document.getElementById('backShopBtn');
@@ -31,6 +34,8 @@ let currentMenuPage = 1;
 const PROGRESS_DATA_KEY = 'magicProgress';
 
 const SHOP_ITEMS = [
+    { id: 'defaultTrail', type: 'trail', name: 'Default Trail', description: 'The starting simple white trail.', cost: 0 },
+    { id: 'defaultCostume', type: 'costume', name: 'Default Costume', description: 'The classic red ball look.', cost: 0 },
     { id: 'sparkTrail', type: 'trail', name: 'Spark Trail', description: 'Leaves a bright blue spark trail as you move.', cost: 5 },
     { id: 'rainbowTrail', type: 'trail', name: 'Rainbow Trail', description: 'A colorful streak follows the ball with every bounce.', cost: 8 },
     { id: 'fireTrail', type: 'trail', name: 'Fire Trail', description: 'A blazing flame trail that flickers behind you.', cost: 7 },
@@ -44,9 +49,9 @@ const SHOP_ITEMS = [
 const DEFAULT_PROGRESS = {
     unlockedLevel: 1,
     wallet: 0,
-    ownedItems: [],
-    equippedTrail: null,
-    equippedCostume: null
+    ownedItems: ['defaultTrail', 'defaultCostume'],
+    equippedTrail: 'defaultTrail',
+    equippedCostume: 'defaultCostume'
 };
 
 let progress = loadProgress();
@@ -57,13 +62,16 @@ function loadProgress() {
         const raw = localStorage.getItem(PROGRESS_DATA_KEY);
         if (!raw) return { ...DEFAULT_PROGRESS };
         const stored = JSON.parse(raw);
-        return {
+        const loaded = {
             unlockedLevel: Math.min(TOTAL_LEVELS, Math.max(1, stored.unlockedLevel || 1)),
             wallet: Math.max(0, stored.wallet || 0),
             ownedItems: Array.isArray(stored.ownedItems) ? stored.ownedItems : [...DEFAULT_PROGRESS.ownedItems],
-            equippedTrail: typeof stored.equippedTrail === 'string' ? stored.equippedTrail : DEFAULT_PROGRESS.equippedTrail,
-            equippedCostume: typeof stored.equippedCostume === 'string' ? stored.equippedCostume : DEFAULT_PROGRESS.equippedCostume
+            equippedTrail: typeof stored.equippedTrail === 'string' ? stored.equippedTrail : 'defaultTrail',
+            equippedCostume: typeof stored.equippedCostume === 'string' ? stored.equippedCostume : 'defaultCostume'
         };
+        if (!loaded.ownedItems.includes('defaultTrail')) loaded.ownedItems.push('defaultTrail');
+        if (!loaded.ownedItems.includes('defaultCostume')) loaded.ownedItems.push('defaultCostume');
+        return loaded;
     } catch (error) {
         return { ...DEFAULT_PROGRESS };
     }
@@ -84,7 +92,8 @@ function resetProgressData() {
     saveProgress();
     currentMenuPage = 1;
     game.unlockedLevels = progress.unlockedLevel;
-    game.returnToMenu();
+    if (settingsScreen) settingsScreen.classList.add('hidden');
+    if (menuScreen) menuScreen.classList.remove('hidden');
     showMenuPage(1);
     updateMenuStats();
     updateShopUI();
@@ -198,6 +207,32 @@ const LEVEL_PRESETS = Array.from({ length: TOTAL_LEVELS }, (_, index) => {
         r: 8
     }));
 
+    const obstacles = [];
+    if (level >= 5) {
+        const count = Math.min(3, Math.floor(level / 5));
+        for (let i = 0; i < count; i++) {
+            obstacles.push({
+                x: 150 + (level * 47 + i * 110) % 300,
+                y: 100 + (level * 13 + i * 70) % 150,
+                w: 80,
+                h: 25,
+                type: 'bouncer'
+            });
+        }
+    }
+    if (level >= 10) {
+        const count = Math.min(2, Math.floor(level / 10));
+        for (let i = 0; i < count; i++) {
+            obstacles.push({
+                x: 100 + (level * 29 + i * 180) % 400,
+                y: 50 + (level * 37 + i * 90) % 100,
+                w: 20,
+                h: 120,
+                type: 'hazard'
+            });
+        }
+    }
+
     return {
         speed: 3 + level * 0.35,
         playerStart: {
@@ -210,7 +245,8 @@ const LEVEL_PRESETS = Array.from({ length: TOTAL_LEVELS }, (_, index) => {
             w: 40,
             h: 40
         },
-        coins
+        coins,
+        obstacles
     };
 });
 
@@ -242,6 +278,7 @@ class Game {
         this.launchVy = speed;
 
         this.coins = config.coins.map(coin => ({ ...coin }));
+        this.obstacles = config.obstacles.map(obs => ({ ...obs }));
         this.coinsCollected = 0;
         this.requiredCoins = this.coins.length;
         this.exit = { ...config.exit, open: false };
@@ -277,7 +314,7 @@ class Game {
         }
 
         // Update velocity based on held keys (allow mid-air direction changes for a short time)
-        const speed = 3 + this.level;
+        const speed = LEVEL_PRESETS[this.level - 1].speed;
         let newVx = this.player.vx;
         let newVy = this.player.vy;
         const now = performance.now();
@@ -342,6 +379,38 @@ class Game {
             }
         }
 
+        // Obstacle Collisions
+        this.obstacles.forEach(obs => {
+            if (this.player.x + this.player.r > obs.x && this.player.x - this.player.r < obs.x + obs.w &&
+                this.player.y + this.player.r > obs.y && this.player.y - this.player.r < obs.y + obs.h) {
+                
+                if (obs.type === 'bouncer') {
+                    const overlapLeft = (this.player.x + this.player.r) - obs.x;
+                    const overlapRight = (obs.x + obs.w) - (this.player.x - this.player.r);
+                    const overlapTop = (this.player.y + this.player.r) - obs.y;
+                    const overlapBottom = (obs.y + obs.h) - (this.player.y - this.player.r);
+
+                    const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+                    if (minOverlap === overlapLeft) {
+                        this.player.vx = -Math.abs(this.player.vx);
+                        this.player.x = obs.x - this.player.r;
+                    } else if (minOverlap === overlapRight) {
+                        this.player.vx = Math.abs(this.player.vx);
+                        this.player.x = obs.x + obs.w + this.player.r;
+                    } else if (minOverlap === overlapTop) {
+                        this.player.vy = -Math.abs(this.player.vy);
+                        this.player.y = obs.y - this.player.r;
+                    } else if (minOverlap === overlapBottom) {
+                        this.player.vy = Math.abs(this.player.vy);
+                        this.player.y = obs.y + obs.h + this.player.r;
+                    }
+                } else if (obs.type === 'hazard') {
+                    this.resetLevel();
+                }
+            }
+        });
+
         // Coin Collision
         this.coins = this.coins.filter(coin => {
             const dist = Math.hypot(this.player.x - coin.x, this.player.y - coin.y);
@@ -372,33 +441,15 @@ class Game {
     draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Render Trail
-        if (progress.equippedTrail && this.trailPositions.length > 1) {
-            const trailColor = getTrailColor();
-            if (trailColor === null) {
-                for (let i = 0; i < this.trailPositions.length - 1; i++) {
-                    const hue = (i / this.trailPositions.length * 360) % 360;
-                    ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.moveTo(this.trailPositions[i].x, this.trailPositions[i].y);
-                    ctx.lineTo(this.trailPositions[i + 1].x, this.trailPositions[i + 1].y);
-                    ctx.stroke();
-                }
-            } else {
-                for (let i = 0; i < this.trailPositions.length - 1; i++) {
-                    const alpha = i / this.trailPositions.length;
-                    const colorWithAlpha = trailColor.replace(/[\d.]+\)$/g, alpha + ')');
-                    ctx.strokeStyle = colorWithAlpha;
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.moveTo(this.trailPositions[i].x, this.trailPositions[i].y);
-                    ctx.lineTo(this.trailPositions[i + 1].x, this.trailPositions[i + 1].y);
-                    ctx.stroke();
-                }
-            }
-        }
-        
+        // Render Obstacles
+        this.obstacles.forEach(obs => {
+            ctx.fillStyle = obs.type === 'bouncer' ? '#95a5a6' : '#e74c3c';
+            ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+        });
+
         // Render Exit (Door on Ledge)
         this.drawDoorOnLedge();
 
@@ -701,7 +752,25 @@ function initializeMenu() {
 
     prevPageBtn.addEventListener('click', () => showMenuPage(currentMenuPage - 1));
     nextPageBtn.addEventListener('click', () => showMenuPage(currentMenuPage + 1));
-    resetBtn.addEventListener('click', resetProgressData);
+    
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => {
+            menuScreen.classList.add('hidden');
+            settingsScreen.classList.remove('hidden');
+        });
+    }
+
+    if (backSettingsBtn) {
+        backSettingsBtn.addEventListener('click', () => {
+            settingsScreen.classList.add('hidden');
+            menuScreen.classList.remove('hidden');
+        });
+    }
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetProgressData);
+    }
+
     shopBtn.addEventListener('click', () => {
         menuScreen.classList.add('hidden');
         shopScreen.classList.remove('hidden');
