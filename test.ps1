@@ -29,7 +29,7 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     }
 }
 
-if ($errors -eq 0 -and Get-Command node -ErrorAction SilentlyContinue) {
+if ($errors -eq 0 -and (Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "[OK] Node.js found: $(node --version)" -ForegroundColor Green
 }
 

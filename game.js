@@ -27,9 +27,13 @@ const unlockedCountText = document.getElementById('unlockedCount');
 const totalCountText = document.getElementById('totalCount');
 
 // Number of available levels
-const TOTAL_LEVELS = 24;
+const TOTAL_LEVELS = 48;
 const LEVELS_PER_PAGE = 12;
-const DIRECTION_CHANGE_COOLDOWN_MS = 5000; // 5s cooldown between direction changes
+const DIRECTION_CHANGE_COOLDOWN_MS = 3000; // 3s cooldown between direction changes
+
+let settingsClickCount = 0;
+let lastSettingsClickTime = 0;
+let developerModeEnabled = false;
 let currentMenuPage = 1;
 const PROGRESS_DATA_KEY = 'magicProgress';
 
@@ -104,6 +108,34 @@ function addWallet(amount) {
     saveProgress();
     updateMenuStats();
 }
+
+function toggleDeveloperToolsVisibility() {
+    const developerToolsDiv = document.getElementById('developerTools');
+    if (developerToolsDiv) {
+        if (developerModeEnabled) {
+            developerToolsDiv.classList.remove('hidden');
+        } else {
+            developerToolsDiv.classList.add('hidden');
+        }
+    }
+}
+
+function unlockAllLevels() {
+    progress.unlockedLevel = TOTAL_LEVELS;
+    saveProgress();
+    game.unlockedLevels = TOTAL_LEVELS;
+    updateMenuStats();
+    showMenuPage(currentMenuPage);
+    alert('All levels unlocked!');
+}
+
+function unlockAllItems() {
+    progress.ownedItems = SHOP_ITEMS.map(item => item.id);
+    saveProgress();
+    updateShopUI();
+    alert('All shop items unlocked!');
+}
+
 
 function buyShopItem(itemId) {
     const item = SHOP_ITEMS.find(item => item.id === itemId);
@@ -198,9 +230,9 @@ function getTrailColor(alpha = 1) {
 
 const LEVEL_PRESETS = Array.from({ length: TOTAL_LEVELS }, (_, index) => {
     const level = index + 1;
-    const coinCount = 3 + Math.floor(index / 6);
+    const coinCount = 3 + Math.floor(index / 5);
     const exitX = 520 - (index % 4) * 80;
-    const exitY = 320 - Math.floor(index / 4) * 25;
+    const exitY = 320 - Math.floor(index / 6) * 30;
     const coins = Array.from({ length: coinCount }, (__, coinIndex) => ({
         x: 80 + ((level * 73 + coinIndex * 111) % 450),
         y: 80 + ((level * 59 + coinIndex * 97) % 230),
@@ -208,36 +240,48 @@ const LEVEL_PRESETS = Array.from({ length: TOTAL_LEVELS }, (_, index) => {
     }));
 
     const obstacles = [];
-    if (level >= 5) {
-        const count = Math.min(3, Math.floor(level / 5));
+    if (level >= 5) { // Bouncers start from level 5
+        const count = Math.min(8, Math.floor(level / 5) + 1); // More bouncers as levels increase
         for (let i = 0; i < count; i++) {
-            obstacles.push({
+            const obs = { // Base bouncer properties
                 x: 150 + (level * 47 + i * 110) % 300,
                 y: 100 + (level * 13 + i * 70) % 150,
                 w: 80,
                 h: 25,
                 type: 'bouncer'
-            });
+            };
+            if (level >= 25) { // Moving bouncers from level 25
+                obs.vx = 2 + (level - 25) * 0.1; // Increase speed with level
+                if (level >= 35) { // Vertical movement for some bouncers from level 35
+                    obs.vy = 1.5 + (level - 35) * 0.1;
+                }
+            }
+            obstacles.push(obs);
         }
     }
-    if (level >= 10) {
-        const count = Math.min(2, Math.floor(level / 10));
+    if (level >= 10) { // Hazards start from level 10
+        const count = Math.min(6, Math.floor(level / 8)); // More hazards as levels increase
         for (let i = 0; i < count; i++) {
-            obstacles.push({
+            const obs = { // Base hazard properties
                 x: 100 + (level * 29 + i * 180) % 400,
                 y: 50 + (level * 37 + i * 90) % 100,
                 w: 20,
                 h: 120,
                 type: 'hazard'
-            });
+            };
+            if (level >= 42) { // Moving hazards from level 42
+                obs.vx = 2.5 + (level - 42) * 0.15; // Increase speed with level
+                if (i % 2 === 0) obs.vy = 1.5 + (level - 42) * 0.1; // Some hazards move vertically
+            }
+            obstacles.push(obs);
         }
     }
 
     return {
-        speed: 3 + level * 0.35,
+        speed: 3 + level * 0.4, // Steeper speed increase
         playerStart: {
             x: 50 + (index % 4) * 20,
-            y: 50 + Math.floor(index / 4) * 15
+            y: 50 + Math.floor(index / 12) * 15
         },
         exit: {
             x: exitX,
@@ -312,6 +356,18 @@ class Game {
         if (!this.ballLaunched) {
             return;
         }
+
+        // Move obstacles if they have velocity
+        this.obstacles.forEach(obs => {
+            if (obs.vx) {
+                obs.x += obs.vx;
+                if (obs.x <= 0 || obs.x + obs.w >= canvas.width) obs.vx *= -1;
+            }
+            if (obs.vy) {
+                obs.y += obs.vy;
+                if (obs.y <= 0 || obs.y + obs.h >= canvas.height) obs.vy *= -1;
+            }
+        });
 
         // Update velocity based on held keys (allow mid-air direction changes for a short time)
         const speed = LEVEL_PRESETS[this.level - 1].speed;
@@ -755,6 +811,21 @@ function initializeMenu() {
     
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
+            // Developer tools activation logic
+            const now = performance.now();
+            if (now - lastSettingsClickTime < 500) { // 500ms threshold for rapid clicks
+                settingsClickCount++;
+                if (settingsClickCount >= 3) {
+                    developerModeEnabled = !developerModeEnabled; // Toggle developer mode
+                    toggleDeveloperToolsVisibility();
+                    settingsClickCount = 0; // Reset count after activation
+                    alert(`Developer Tools ${developerModeEnabled ? 'Enabled' : 'Disabled'}`);
+                }
+            } else {
+                settingsClickCount = 1; // Start new count
+            }
+            lastSettingsClickTime = now;
+
             menuScreen.classList.add('hidden');
             settingsScreen.classList.remove('hidden');
         });
@@ -771,6 +842,31 @@ function initializeMenu() {
         resetBtn.addEventListener('click', resetProgressData);
     }
 
+    // Dynamically create developer tools section
+    const developerToolsDiv = document.createElement('div');
+    developerToolsDiv.id = 'developerTools';
+    developerToolsDiv.classList.add('hidden'); // Hidden by default
+    developerToolsDiv.innerHTML = `
+        <h3 style="color: #e74c3c; margin-top: 20px;">Developer Tools</h3>
+        <button id="unlockAllLevelsBtn" class="dev-btn" style="background-color: #3498db; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">Unlock All Levels</button>
+        <button id="unlockAllItemsBtn" class="dev-btn" style="background-color: #2ecc71; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer;">Unlock All Items</button>
+    `;
+    settingsScreen.appendChild(developerToolsDiv);
+
+    // Add event listeners for developer tools buttons AFTER they are in the DOM
+    const unlockAllLevelsBtn = document.getElementById('unlockAllLevelsBtn');
+    const unlockAllItemsBtn = document.getElementById('unlockAllItemsBtn');
+
+    if (unlockAllLevelsBtn) {
+        unlockAllLevelsBtn.addEventListener('click', unlockAllLevels);
+    }
+    if (unlockAllItemsBtn) {
+        unlockAllItemsBtn.addEventListener('click', unlockAllItems);
+    }
+
+    if (developerModeEnabled) { // Show if already enabled from a previous session (though not persisted)
+        developerToolsDiv.classList.remove('hidden');
+    }
     shopBtn.addEventListener('click', () => {
         menuScreen.classList.add('hidden');
         shopScreen.classList.remove('hidden');
@@ -782,7 +878,6 @@ function initializeMenu() {
         shopScreen.classList.add('hidden');
         menuScreen.classList.remove('hidden');
     });
-
     showMenuPage(1);
     updateMenuStats();
     updateShopUI();
