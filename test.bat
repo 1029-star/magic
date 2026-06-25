@@ -72,7 +72,7 @@ if %errors% equ 0 (
     echo All tests passed!
     exit /b 0
 ) else (
-    echo %errors% test(s) failed.
+    echo %errors% tests failed.
     pause
     exit /b 1
 )

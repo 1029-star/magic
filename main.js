@@ -3,9 +3,9 @@ const path = require('path');
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 650,
-    height: 550,
-    resizable: false, // Ensures game logic remains consistent with canvas size
+    width: 920,
+    height: 600,
+    resizable: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false

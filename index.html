@@ -42,14 +42,16 @@
             align-items: center;
             justify-content: center;
             width: 100%;
+            min-height: 100vh;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             z-index: 1000;
         }
 
         #menuScreen.hidden,
         #shopScreen.hidden,
-        #gameScreen.hidden {
-            display: none;
+        #gameScreen.hidden,
+        .hidden {
+            display: none !important;
         }
 
         .menu-container {
@@ -406,9 +408,11 @@
             <div class="menu-title">🎮 Bounce & Collect</div>
             <div class="menu-subtitle">Complete levels to unlock the next one and then visit the shop to change your look.</div>
             <div class="menu-top-row">
-                <div class="menu-stat">Unlocked: <span id="unlockedCount">1</span>/<span id="totalCount">24</span></div>
-                <div class="menu-stat">Coins Collected: <span id="wallet">0</span></div>
-                <div class="menu-stat">Page: <span id="pageLabel">1/2</span></div>
+                 <div class="menu-stat">Unlocked: <span id="unlockedCount">1</span>/<span id="totalCount">72</span></div>
+                 <div class="menu-stat">Coins Collected: <span id="wallet">0</span></div>
+                 <div class="menu-stat">Page: <span id="pageLabel">1/6</span></div>
+            </div>
+            <div class="menu-top-row">
                 <button class="page-btn" id="settingsBtn">Settings</button>
                 <button class="shop-open-btn" id="shopBtn"> Shop</button>
             </div>
@@ -449,18 +453,81 @@
                 <button class="page-btn" id="backSettingsBtn">← Back to Menu</button>
                 <button class="back-btn" id="resetBtn" style="background: #c0392b; margin-top: 50px;">Reset All Progress</button>
             </div>
+            
+            <!-- Developer Tools Section -->
+            <div id="developerTools" class="hidden" style="margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 20px; text-align: center; width: 100%;">
+                <h3 style="color: #e74c3c; margin: 0 0 15px 0; font-size: 1.4rem;">🛠️ Developer Tools</h3>
+                <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
+                    <button id="unlockAllLevelsBtn" class="dev-btn" style="background-color: #3498db; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: opacity 0.2s;">Unlock All Levels</button>
+                    <button id="unlockAllItemsBtn" class="dev-btn" style="background-color: #2ecc71; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: opacity 0.2s;">Unlock All Items</button>
+                    <button id="devOpenEditorBtn" class="dev-btn" style="background-color: #9b59b6; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: opacity 0.2s;">🛠️ Level Editor</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Game Screen -->
     <div id="gameScreen" class="hidden">
-        <div class="game-wrapper">
-            <div class="header">
-                <span class="stats">Level: <span id="lvl">1</span> | Coins: <span id="cnt">0</span>/<span id="cntTotal">3</span></span>
-                <button class="back-btn" id="backBtn">← Back to Menu</button>
+        <div class="game-wrapper" style="display: flex; flex-direction: row; gap: 20px; align-items: flex-start; justify-content: center; max-width: 900px; margin: 0 auto;">
+            <!-- Left Side: Canvas & Gameplay -->
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <div class="header" style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 10px;">
+                    <span class="stats" id="gameStatsText">Level: <span id="lvl">1</span> | Coins: <span id="cnt">0</span>/<span id="cntTotal">3</span> | Steering: <span id="steeringTimer" style="color: #2ecc71; font-weight: bold; text-shadow: 0 0 5px rgba(46, 204, 113, 0.5);">READY</span></span>
+                    <span class="stats hidden" id="editorStatsText" style="color: #9b59b6; font-weight: bold; text-shadow: 0 0 5px rgba(155, 89, 182, 0.5);">🛠️ EDITOR MODE</span>
+                    <button class="back-btn" id="backBtn">← Back to Menu</button>
+                </div>
+                <canvas id="gameCanvas" width="600" height="400"></canvas>
+                <p class="hint" id="gameHintText">The ball bounces automatically. Collect all coins to unlock the exit!</p>
             </div>
-            <canvas id="gameCanvas" width="600" height="400"></canvas>
-            <p class="hint">The ball bounces automatically. Collect all coins to unlock the exit!</p>
+            
+            <!-- Right Side: Editor Side Panel -->
+            <div id="editorPanel" class="hidden" style="width: 240px; display: flex; flex-direction: column; gap: 12px; text-align: left; background: rgba(0,0,0,0.6); padding: 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); margin-top: 45px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                <h3 id="editorToolboxHeader" style="margin: 0; color: #9b59b6; font-size: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 6px;">🛠️ Editor Toolbox</h3>
+                
+                <!-- Toolbox -->
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;" id="editorToolbox">
+                    <button class="page-btn active" id="tool-select" style="font-size: 0.75rem; padding: 6px; background: #9b59b6; border: 1px solid #ffffff;">Select</button>
+                    <button class="page-btn" id="tool-player" style="font-size: 0.75rem; padding: 6px;">Start Pt</button>
+                    <button class="page-btn" id="tool-exit" style="font-size: 0.75rem; padding: 6px;">Exit Door</button>
+                    <button class="page-btn" id="tool-coin" style="font-size: 0.75rem; padding: 6px;">Coin</button>
+                    <button class="page-btn" id="tool-bouncer" style="font-size: 0.75rem; padding: 6px;">Bouncer</button>
+                    <button class="page-btn" id="tool-hazard" style="font-size: 0.75rem; padding: 6px;">Hazard</button>
+                    <button class="page-btn" id="tool-slow_zone" style="font-size: 0.75rem; padding: 6px;">Slow Zone</button>
+                    <button class="page-btn" id="tool-portal" style="font-size: 0.75rem; padding: 6px;">Portal Link</button>
+                    <button class="page-btn" id="tool-saw" style="font-size: 0.75rem; padding: 6px;">Moving Saw</button>
+                    <button class="page-btn" id="tool-boost" style="font-size: 0.75rem; padding: 6px;">Boost Pad</button>
+                    <button class="page-btn" id="tool-fragile_bouncer" style="font-size: 0.75rem; padding: 6px;">Fragile Bnc</button>
+                    <button class="page-btn" id="tool-puzzle_hole" style="font-size: 0.75rem; padding: 6px;">Puzzle Hole</button>
+                </div>
+                
+                <!-- Operations -->
+                <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+                    <button class="page-btn" id="editorPlaytestBtn" style="background: #2ecc71; color: white; padding: 6px; font-size: 0.85rem;">▶ Playtest</button>
+                    <button class="page-btn" id="editorSaveBtn" style="background: #e67e22; color: white; padding: 6px; font-size: 0.85rem;">💾 Save Level to Menu</button>
+                    <button class="page-btn hidden" id="editorSavePresetBtn" style="background: #e74c3c; color: white; padding: 6px; font-size: 0.85rem;">💾 Save as Permanent Preset</button>
+                    <div id="editorExportImportContainer" style="display: flex; gap: 6px;">
+                        <button class="page-btn" id="editorExportBtn" style="flex: 1; font-size: 0.75rem; padding: 5px; background: #34495e;">Export</button>
+                        <button class="page-btn" id="editorImportBtn" style="flex: 1; font-size: 0.75rem; padding: 5px; background: #34495e;">Import</button>
+                    </div>
+                    <button class="page-btn" id="editorClearBtn" style="background: #c0392b; color: white; padding: 5px; font-size: 0.75rem;">Clear All</button>
+                </div>
+                
+                <h3 id="editorPropertiesHeader" style="margin: 0; color: #dfe6ed; font-size: 1rem; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 4px; margin-top: 6px;">Object Properties</h3>
+                <div id="editorPropertiesPanel" style="font-size: 0.8rem; color: #bdc3c7; min-height: 80px; max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+                    Select an item on the canvas to configure properties.
+                </div>
+
+                <!-- Saved Levels Dropdown & Management -->
+                <div id="editorSavedLevelsContainer" style="border-top: 1px solid rgba(255,255,255,0.15); padding-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+                    <label style="font-size: 0.8rem; color: #bdc3c7; display: flex; flex-direction: column;">
+                        <span>Load Custom Level:</span>
+                        <select id="editorSavedLevelsSelect" style="background: #2c3e50; border: 1px solid #7f8c8d; color: white; padding: 4px; border-radius: 4px; font-size: 0.75rem;">
+                            <option value="">-- Choose Level --</option>
+                        </select>
+                    </label>
+                    <button class="page-btn" id="editorDeleteSavedBtn" style="background: #c0392b; color: white; padding: 4px; font-size: 0.75rem;">Delete Loaded Level</button>
+                </div>
+            </div>
         </div>
     </div>
 
