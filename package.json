@@ -4,7 +4,7 @@
   "description": "A standalone bouncing ball collection game.",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "node node_modules/electron/cli.js ."
   },
   "devDependencies": {
     "electron": "^42.4.1"

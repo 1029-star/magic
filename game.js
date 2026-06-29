@@ -29,6 +29,7 @@ const totalCountText = document.getElementById('totalCount');
 
 const fs = (typeof require !== 'undefined') ? require('fs') : null;
 const path = (typeof require !== 'undefined') ? require('path') : null;
+const baseDir = (typeof __dirname !== 'undefined') ? __dirname : (typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '');
 
 // Number of available levels
 let TOTAL_LEVELS = 72;
@@ -72,7 +73,7 @@ function loadProgress() {
         if (!raw) return { ...DEFAULT_PROGRESS };
         const stored = JSON.parse(raw);
         const loaded = {
-            unlockedLevel: Math.min(TOTAL_LEVELS, Math.max(1, stored.unlockedLevel || 1)),
+            unlockedLevel: Math.max(1, stored.unlockedLevel || 1),
             wallet: Math.max(0, stored.wallet || 0),
             ownedItems: Array.isArray(stored.ownedItems) ? stored.ownedItems : [...DEFAULT_PROGRESS.ownedItems],
             equippedTrail: typeof stored.equippedTrail === 'string' ? stored.equippedTrail : 'defaultTrail',
@@ -120,9 +121,46 @@ function toggleDeveloperToolsVisibility() {
     if (developerToolsDiv) {
         if (developerModeEnabled) {
             developerToolsDiv.classList.remove('hidden');
+            updateDevDeleteSelect();
         } else {
             developerToolsDiv.classList.add('hidden');
         }
+    }
+}
+
+function updateDevDeleteSelect() {
+    const select = document.getElementById('devDeleteLevelSelect');
+    if (!select) return;
+    select.innerHTML = '<option value="">-- Choose Preset --</option>';
+    for (let i = 72; i < LEVEL_PRESETS.length; i++) {
+        const preset = LEVEL_PRESETS[i];
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.innerText = `${i + 1}: ${preset.name || 'Preset'}`;
+        select.appendChild(opt);
+    }
+}
+
+function requestDeveloperAccess(callback) {
+    if (developerModeEnabled) {
+        developerModeEnabled = false;
+        toggleDeveloperToolsVisibility();
+        alert("Developer Tools Disabled.");
+        callback(false);
+    } else {
+        showCustomPrompt("Enter Developer Passcode:", "Enter passcode...", (passcode) => {
+            if (passcode === "magic") {
+                developerModeEnabled = true;
+                toggleDeveloperToolsVisibility();
+                alert("Developer Tools Enabled!");
+                callback(true);
+            } else if (passcode !== null) {
+                alert("Invalid passcode. Access denied.");
+                callback(false);
+            } else {
+                callback(false);
+            }
+        });
     }
 }
 
@@ -625,7 +663,7 @@ function loadWorkspacePresets() {
     let presets = [];
     if (fs) {
         try {
-            const fsPath = path.join(__dirname || process.cwd(), 'custom_presets.json');
+            const fsPath = path.join(baseDir, 'custom_presets.json');
             if (fs.existsSync(fsPath)) {
                 const data = fs.readFileSync(fsPath, 'utf8');
                 presets = JSON.parse(data);
@@ -653,6 +691,20 @@ function loadWorkspacePresets() {
         TOTAL_LEVELS += presets.length;
         console.log(`Loaded ${presets.length} permanent presets. New TOTAL_LEVELS = ${TOTAL_LEVELS}`);
     }
+
+    // Deduplicate local custom levels against loaded preset levels
+    if (progress.customLevels && progress.customLevels.length > 0) {
+        const presetNames = new Set(LEVEL_PRESETS.map(p => p.name));
+        const originalCount = progress.customLevels.length;
+        progress.customLevels = progress.customLevels.filter(cl => !presetNames.has(cl.name));
+        if (progress.customLevels.length !== originalCount) {
+            saveProgress();
+        }
+    }
+
+    // Clamp unlockedLevel to the updated TOTAL_LEVELS
+    progress.unlockedLevel = Math.min(TOTAL_LEVELS, progress.unlockedLevel);
+    saveProgress();
 }
 
 loadWorkspacePresets();
@@ -2747,8 +2799,6 @@ class Game {
 
         // Hide other operations buttons in the same container during playtest
         document.getElementById('editorSaveBtn').classList.add('hidden');
-        const savePresetBtn = document.getElementById('editorSavePresetBtn');
-        if (savePresetBtn) savePresetBtn.classList.add('hidden');
         document.getElementById('editorExportImportContainer').classList.add('hidden');
         document.getElementById('editorClearBtn').classList.add('hidden');
 
@@ -2778,14 +2828,6 @@ class Game {
 
         // Restore other operations buttons
         document.getElementById('editorSaveBtn').classList.remove('hidden');
-        const savePresetBtn = document.getElementById('editorSavePresetBtn');
-        if (savePresetBtn) {
-            if (fs) {
-                savePresetBtn.classList.remove('hidden');
-            } else {
-                savePresetBtn.classList.add('hidden');
-            }
-        }
         document.getElementById('editorExportImportContainer').classList.remove('hidden');
         document.getElementById('editorClearBtn').classList.remove('hidden');
 
@@ -2801,32 +2843,43 @@ class Game {
 
     exportCustomLevel() {
         const json = JSON.stringify(this.editorCustomLevel);
-        const inputPrompt = prompt("Copy this JSON level configuration:", json);
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            navigator.clipboard.writeText(json).then(() => {
+                alert("Level configuration JSON copied to clipboard successfully!");
+            }).catch(err => {
+                showCustomPrompt("Export Level (Copy the text below):", "", () => {}, json);
+            });
+        } else {
+            showCustomPrompt("Export Level (Copy the text below):", "", () => {}, json);
+        }
     }
 
     importCustomLevel() {
-        const json = prompt("Paste your JSON level configuration here:");
-        if (!json) return;
-        try {
-            const config = JSON.parse(json);
-            if (!config.playerStart || !config.exit) {
-                alert("Invalid level format: Must contain playerStart and exit properties.");
-                return;
-            }
-            if (!config.coins) config.coins = [];
-            if (!config.obstacles) config.obstacles = [];
-            if (!config.speed) config.speed = 5.0;
+        showCustomPrompt("Import Level", "Paste your JSON level configuration here:", (json) => {
+            if (!json) return;
+            try {
+                const config = JSON.parse(json);
+                if (!config.playerStart || !config.exit) {
+                    alert("Invalid level format: Must contain playerStart and exit properties.");
+                    return;
+                }
+                if (!config.coins) config.coins = [];
+                if (!config.obstacles) config.obstacles = [];
+                if (!config.speed) config.speed = 5.0;
 
-            this.editorCustomLevel = config;
-            this.editorSelectedObject = null;
-            this.updatePropertiesPanel();
-            this.saveEditorCustomLevel();
-            this.updateSavedLevelsDropdown();
-            alert("Level imported successfully!");
-        } catch (e) {
-            alert("Invalid JSON data. Import failed.");
-        }
+                this.editorCustomLevel = config;
+                this.editorSelectedObject = null;
+                this.updatePropertiesPanel();
+                this.saveEditorCustomLevel();
+                this.updateSavedLevelsDropdown();
+                alert("Level imported successfully!");
+            } catch (e) {
+                alert("Invalid JSON data. Import failed.");
+            }
+        });
     }
+
+
 
     clearCustomLevel() {
         if (confirm("Are you sure you want to clear this entire custom level?")) {
@@ -2838,23 +2891,67 @@ class Game {
     }
 
     saveCustomLevelToList() {
-        const levelName = prompt("Enter a name for this custom level (or leave blank for C + number):");
-        if (levelName === null) return;
-        
-        if (!progress.customLevels) {
-            progress.customLevels = [];
-        }
-        
-        const copy = JSON.parse(JSON.stringify(this.editorCustomLevel));
-        copy.name = levelName.trim() !== "" ? levelName.trim() : `Custom Level ${progress.customLevels.length + 1}`;
-        
-        progress.customLevels.push(copy);
-        saveProgress();
-        
-        alert("Level saved to your Custom Levels list! You can play it from the main levels menu.");
-        
-        this.updateSavedLevelsDropdown();
-        initializeMenu();
+        showCustomPrompt("Enter a name for this custom level:", "My Custom Level", (levelName) => {
+            if (levelName === null) return;
+            
+            const trimmedName = levelName.trim();
+            
+            // Save to Workspace custom_presets.json if running in Electron (fs is available)
+            let savedPermanently = false;
+            if (fs) {
+                let presets = [];
+                try {
+                    const fsPath = path.join(baseDir, 'custom_presets.json');
+                    if (fs.existsSync(fsPath)) {
+                        const data = fs.readFileSync(fsPath, 'utf8');
+                        presets = JSON.parse(data);
+                    }
+                } catch (err) {
+                    console.error("Error reading existing custom_presets.json:", err);
+                }
+
+                // Create a copy for the permanent preset
+                const presetCopy = JSON.parse(JSON.stringify(this.editorCustomLevel));
+                presetCopy.name = trimmedName !== "" ? trimmedName : `Preset Level ${TOTAL_LEVELS + 1}`;
+                if (!presetCopy.speed) presetCopy.speed = 5.0;
+
+                presets.push(presetCopy);
+
+                try {
+                    const fsPath = path.join(baseDir, 'custom_presets.json');
+                    fs.writeFileSync(fsPath, JSON.stringify(presets, null, 4), 'utf8');
+                    
+                    // Append it to current session array to make it live instantly
+                    LEVEL_PRESETS.push(presetCopy);
+                    TOTAL_LEVELS += 1;
+                    savedPermanently = true;
+                } catch (err) {
+                    console.error("Error writing custom_presets.json:", err);
+                }
+            } else {
+                // Fallback to Save to Local Storage Custom Levels in browser environment
+                if (!progress.customLevels) {
+                    progress.customLevels = [];
+                }
+                
+                const copy = JSON.parse(JSON.stringify(this.editorCustomLevel));
+                copy.name = trimmedName !== "" ? trimmedName : `Custom Level ${progress.customLevels.length + 1}`;
+                if (!copy.speed) copy.speed = 5.0;
+                
+                progress.customLevels.push(copy);
+                saveProgress();
+            }
+            
+            if (savedPermanently) {
+                alert("Level successfully saved permanently to custom_presets.json!");
+            } else {
+                alert("Level saved to your Custom Levels list! You can play it from the main levels menu.");
+            }
+            
+            this.updateSavedLevelsDropdown();
+            updateDevDeleteSelect();
+            initializeMenu();
+        });
     }
 
     updateSavedLevelsDropdown() {
@@ -2862,18 +2959,46 @@ class Game {
         if (!select) return;
 
         select.innerHTML = '<option value="">-- Choose Level --</option>';
+
+        // 1. Preset Levels (from custom_presets.json / LEVEL_PRESETS starting from 72)
+        if (LEVEL_PRESETS.length > 72) {
+            const grp = document.createElement('optgroup');
+            grp.label = "Preset Levels";
+            for (let i = 72; i < LEVEL_PRESETS.length; i++) {
+                const opt = document.createElement('option');
+                opt.value = `preset-${i}`;
+                opt.textContent = `${i + 1}: ${LEVEL_PRESETS[i].name || 'Preset'}`;
+                grp.appendChild(opt);
+            }
+            select.appendChild(grp);
+        }
+
+        // 2. Local Custom Levels (from progress.customLevels)
         const customLevels = progress.customLevels || [];
-        customLevels.forEach((cl, index) => {
-            const opt = document.createElement('option');
-            opt.value = index;
-            opt.textContent = cl.name || `Custom Level ${index + 1}`;
-            select.appendChild(opt);
-        });
+        if (customLevels.length > 0) {
+            const grp = document.createElement('optgroup');
+            grp.label = "Local Custom Levels";
+            customLevels.forEach((cl, index) => {
+                const opt = document.createElement('option');
+                opt.value = `local-${index}`;
+                opt.textContent = cl.name || `Custom Level ${index + 1}`;
+                grp.appendChild(opt);
+            });
+            select.appendChild(grp);
+        }
     }
 
-    loadCustomLevelFromSelect(index) {
-        const customLevels = progress.customLevels || [];
-        const config = customLevels[index];
+    loadCustomLevelFromSelect(val) {
+        let config = null;
+        if (val.startsWith('preset-')) {
+            const idx = parseInt(val.substring(7));
+            config = LEVEL_PRESETS[idx];
+        } else if (val.startsWith('local-')) {
+            const idx = parseInt(val.substring(6));
+            const customLevels = progress.customLevels || [];
+            config = customLevels[idx];
+        }
+        
         if (!config) return;
 
         if (confirm(`Load "${config.name || 'Level'}" into the editor? This will overwrite the current draft.`)) {
@@ -2884,17 +3009,66 @@ class Game {
         }
     }
 
-    deleteCustomLevelFromSelect(index) {
-        const customLevels = progress.customLevels || [];
-        const config = customLevels[index];
-        if (!config) return;
-
-        if (confirm(`Are you sure you want to delete "${config.name || 'Level'}" from the levels list?`)) {
-            progress.customLevels.splice(index, 1);
-            saveProgress();
-            this.updateSavedLevelsDropdown();
-            initializeMenu();
-            alert("Level deleted.");
+    deleteCustomLevelFromSelect(val) {
+        if (!val) return;
+        
+        if (val.startsWith('preset-')) {
+            const idx = parseInt(val.substring(7));
+            const presetToDelete = LEVEL_PRESETS[idx];
+            if (!presetToDelete) return;
+            
+            if (confirm(`Are you sure you want to delete "${presetToDelete.name || 'this preset'}" permanently for everyone? This cannot be undone.`)) {
+                if (fs) {
+                    let presets = [];
+                    try {
+                        const fsPath = path.join(baseDir, 'custom_presets.json');
+                        if (fs.existsSync(fsPath)) {
+                            const data = fs.readFileSync(fsPath, 'utf8');
+                            presets = JSON.parse(data);
+                        }
+                    } catch (err) {
+                        console.error("Error reading custom_presets.json during delete:", err);
+                    }
+                    
+                    const customPresetIndex = idx - 72;
+                    if (customPresetIndex >= 0 && customPresetIndex < presets.length) {
+                        presets.splice(customPresetIndex, 1);
+                        try {
+                            const fsPath = path.join(baseDir, 'custom_presets.json');
+                            fs.writeFileSync(fsPath, JSON.stringify(presets, null, 4), 'utf8');
+                        } catch (err) {
+                            alert("Failed to write to custom_presets.json: " + err.message);
+                            return;
+                        }
+                    }
+                }
+                
+                LEVEL_PRESETS.splice(idx, 1);
+                TOTAL_LEVELS -= 1;
+                
+                if (progress.unlockedLevel > TOTAL_LEVELS) {
+                    progress.unlockedLevel = TOTAL_LEVELS;
+                    saveProgress();
+                }
+                
+                alert("Preset level deleted successfully!");
+                updateDevDeleteSelect();
+                initializeMenu();
+                this.updateSavedLevelsDropdown();
+            }
+        } else if (val.startsWith('local-')) {
+            const idx = parseInt(val.substring(6));
+            const customLevels = progress.customLevels || [];
+            const config = customLevels[idx];
+            if (!config) return;
+            
+            if (confirm(`Are you sure you want to delete "${config.name || 'Level'}" from your local levels list?`)) {
+                progress.customLevels.splice(idx, 1);
+                saveProgress();
+                alert("Custom level deleted successfully!");
+                initializeMenu();
+                this.updateSavedLevelsDropdown();
+            }
         }
     }
 
@@ -2917,54 +3091,7 @@ class Game {
         this.loop();
     }
 
-    saveCustomLevelToPresets() {
-        if (!fs) {
-            alert("Permanent saving is only available when running in Electron / Dev mode.");
-            return;
-        }
 
-        const levelName = prompt("Enter a name for this permanent level preset:");
-        if (levelName === null) return;
-
-        const copy = JSON.parse(JSON.stringify(this.editorCustomLevel));
-        copy.name = levelName.trim() !== "" ? levelName.trim() : `Preset Level ${TOTAL_LEVELS + 1}`;
-        if (!copy.speed) copy.speed = 5.0;
-
-        let presets = [];
-        try {
-            const fsPath = path.join(__dirname || process.cwd(), 'custom_presets.json');
-            if (fs.existsSync(fsPath)) {
-                const data = fs.readFileSync(fsPath, 'utf8');
-                presets = JSON.parse(data);
-            }
-        } catch (err) {
-            console.error("Error reading existing custom_presets.json:", err);
-        }
-
-        presets.push(copy);
-
-        try {
-            const fsPath = path.join(__dirname || process.cwd(), 'custom_presets.json');
-            fs.writeFileSync(fsPath, JSON.stringify(presets, null, 4), 'utf8');
-            alert("Level successfully saved to custom_presets.json as a permanent level!");
-            
-            // Append it to current session array to make it live instantly
-            LEVEL_PRESETS.push(copy);
-            TOTAL_LEVELS += 1;
-
-            // Unlock it for testing
-            this.unlockedLevels = TOTAL_LEVELS;
-            if (progress.unlockedLevel < TOTAL_LEVELS) {
-                progress.unlockedLevel = TOTAL_LEVELS;
-                saveProgress();
-            }
-
-            initializeMenu();
-            this.updateSavedLevelsDropdown();
-        } catch (err) {
-            alert("Failed to write custom_presets.json: " + err.message);
-        }
-    }
 
     placeObjectFromDragAndDrop(toolId, x, y) {
         if (toolId === 'portal') {
@@ -3101,10 +3228,8 @@ function initializeAllEventListeners() {
             if (now - lastSettingsClickTime < 500) {
                 settingsClickCount++;
                 if (settingsClickCount >= 3) {
-                    developerModeEnabled = !developerModeEnabled;
-                    toggleDeveloperToolsVisibility();
                     settingsClickCount = 0;
-                    alert(`Developer Tools ${developerModeEnabled ? 'Enabled' : 'Disabled'}`);
+                    requestDeveloperAccess(() => {});
                 }
             } else {
                 settingsClickCount = 1;
@@ -3131,6 +3256,8 @@ function initializeAllEventListeners() {
     const unlockAllLevelsBtn = document.getElementById('unlockAllLevelsBtn');
     const unlockAllItemsBtn = document.getElementById('unlockAllItemsBtn');
     const devOpenEditorBtn = document.getElementById('devOpenEditorBtn');
+    const devDeleteLevelSelect = document.getElementById('devDeleteLevelSelect');
+    const devDeleteLevelBtn = document.getElementById('devDeleteLevelBtn');
 
     if (unlockAllLevelsBtn) {
         unlockAllLevelsBtn.addEventListener('click', unlockAllLevels);
@@ -3142,6 +3269,63 @@ function initializeAllEventListeners() {
         devOpenEditorBtn.addEventListener('click', () => {
             settingsScreen.classList.add('hidden');
             game.enterEditorMode();
+        });
+    }
+    if (devDeleteLevelBtn && devDeleteLevelSelect) {
+        devDeleteLevelBtn.addEventListener('click', () => {
+            const val = devDeleteLevelSelect.value;
+            if (val === "") {
+                alert("Please select a level preset to delete.");
+                return;
+            }
+            
+            const levelIndex = parseInt(val);
+            const presetToDelete = LEVEL_PRESETS[levelIndex];
+            if (!presetToDelete) {
+                alert("Invalid level selected.");
+                return;
+            }
+            
+            if (confirm(`Are you sure you want to delete "${presetToDelete.name || 'this preset'}" permanently for everyone? This cannot be undone.`)) {
+                if (fs) {
+                    let presets = [];
+                    try {
+                        const fsPath = path.join(baseDir, 'custom_presets.json');
+                        if (fs.existsSync(fsPath)) {
+                            const data = fs.readFileSync(fsPath, 'utf8');
+                            presets = JSON.parse(data);
+                        }
+                    } catch (err) {
+                        console.error("Error reading custom_presets.json during delete:", err);
+                    }
+                    
+                    const customPresetIndex = levelIndex - 72;
+                    if (customPresetIndex >= 0 && customPresetIndex < presets.length) {
+                        presets.splice(customPresetIndex, 1);
+                        
+                        try {
+                            const fsPath = path.join(baseDir, 'custom_presets.json');
+                            fs.writeFileSync(fsPath, JSON.stringify(presets, null, 4), 'utf8');
+                        } catch (err) {
+                            alert("Failed to write to custom_presets.json: " + err.message);
+                            return;
+                        }
+                    }
+                }
+                
+                LEVEL_PRESETS.splice(levelIndex, 1);
+                TOTAL_LEVELS -= 1;
+                
+                if (progress.unlockedLevel > TOTAL_LEVELS) {
+                    progress.unlockedLevel = TOTAL_LEVELS;
+                    saveProgress();
+                }
+                
+                alert("Preset level deleted successfully!");
+                updateDevDeleteSelect();
+                initializeMenu();
+                game.updateSavedLevelsDropdown();
+            }
         });
     }
 
@@ -3207,18 +3391,7 @@ function initializeAllEventListeners() {
         });
     }
 
-    // Save as Permanent Preset Button
-    const savePresetBtn = document.getElementById('editorSavePresetBtn');
-    if (savePresetBtn) {
-        if (fs) {
-            savePresetBtn.classList.remove('hidden');
-            savePresetBtn.addEventListener('click', () => {
-                game.saveCustomLevelToPresets();
-            });
-        } else {
-            savePresetBtn.classList.add('hidden');
-        }
-    }
+
 
     const exportBtn = document.getElementById('editorExportBtn');
     if (exportBtn) {
@@ -3247,7 +3420,7 @@ function initializeAllEventListeners() {
         selectSaved.addEventListener('change', (e) => {
             const val = e.target.value;
             if (val !== "") {
-                game.loadCustomLevelFromSelect(parseInt(val));
+                game.loadCustomLevelFromSelect(val);
             }
         });
     }
@@ -3257,7 +3430,7 @@ function initializeAllEventListeners() {
         deleteSavedBtn.addEventListener('click', () => {
             const select = document.getElementById('editorSavedLevelsSelect');
             if (select && select.value !== "") {
-                game.deleteCustomLevelFromSelect(parseInt(select.value));
+                game.deleteCustomLevelFromSelect(select.value);
             } else {
                 alert("Please select a saved level first.");
             }
@@ -3308,17 +3481,18 @@ function snap(val, size = 20) {
 const keysPressed = {};
 
 document.addEventListener('keydown', (e) => {
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+        // Let normal typing and text inputs work
+        return;
+    }
+
     // Delete selected block on Backspace or Delete key
     if (e.code === 'Backspace' || e.code === 'Delete') {
         if (game.editorMode && !game.isPlaytesting && game.editorSelectedObject) {
-            const activeEl = document.activeElement;
-            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
-                // Let normal text deletion work
-            } else {
-                e.preventDefault();
-                game.deleteSelectedObject();
-                return;
-            }
+            e.preventDefault();
+            game.deleteSelectedObject();
+            return;
         }
     }
 
@@ -3326,21 +3500,20 @@ document.addEventListener('keydown', (e) => {
     if (e.code === 'Backquote') {
         e.preventDefault();
         
-        developerModeEnabled = !developerModeEnabled;
-        toggleDeveloperToolsVisibility();
-        
-        if (developerModeEnabled) {
-            game.stopGame();
-            menuScreen.classList.add('hidden');
-            gameScreen.classList.add('hidden');
-            const editorPanel = document.getElementById('editorPanel');
-            if (editorPanel) editorPanel.classList.add('hidden');
-            settingsScreen.classList.remove('hidden');
-        } else {
-            settingsScreen.classList.add('hidden');
-            menuScreen.classList.remove('hidden');
-            initializeMenu();
-        }
+        requestDeveloperAccess((granted) => {
+            if (granted) {
+                game.stopGame();
+                menuScreen.classList.add('hidden');
+                gameScreen.classList.add('hidden');
+                const editorPanel = document.getElementById('editorPanel');
+                if (editorPanel) editorPanel.classList.add('hidden');
+                settingsScreen.classList.remove('hidden');
+            } else if (!developerModeEnabled) {
+                settingsScreen.classList.add('hidden');
+                menuScreen.classList.remove('hidden');
+                initializeMenu();
+            }
+        });
         return;
     }
 
@@ -3380,6 +3553,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keyup', (e) => {
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+        return;
+    }
     // Track key releases
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyZ', 'KeyX', 'KeyC'].includes(e.code)) {
         keysPressed[e.code] = false;
@@ -3392,6 +3569,55 @@ canvas.addEventListener('click', () => {
         game.launchBall();
     }
 });
+
+function showCustomPrompt(title, placeholder, callback, defaultValue = '') {
+    const modal = document.getElementById('customPromptModal');
+    const titleEl = document.getElementById('customPromptTitle');
+    const inputEl = document.getElementById('customPromptInput');
+    const cancelBtn = document.getElementById('customPromptCancel');
+    const confirmBtn = document.getElementById('customPromptConfirm');
+
+    if (!modal || !titleEl || !inputEl || !cancelBtn || !confirmBtn) {
+        const res = prompt(title, defaultValue);
+        callback(res);
+        return;
+    }
+
+    titleEl.textContent = title;
+    inputEl.value = defaultValue;
+    inputEl.placeholder = placeholder;
+    modal.classList.remove('hidden');
+    inputEl.focus();
+    if (defaultValue) {
+        inputEl.select();
+    }
+
+    // Remove existing event listeners by cloning buttons
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+    newCancelBtn.addEventListener('click', () => {
+        modal.classList.add('hidden');
+        callback(null);
+    });
+
+    newConfirmBtn.addEventListener('click', () => {
+        const val = inputEl.value;
+        modal.classList.add('hidden');
+        callback(val);
+    });
+
+    inputEl.onkeydown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            newConfirmBtn.click();
+        } else if (e.key === 'Escape') {
+            newCancelBtn.click();
+        }
+    };
+}
 
 // Initialize the menu and event listeners on page load
 initializeAllEventListeners();

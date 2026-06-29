@@ -1,0 +1,291 @@
+[
+    {
+        "speed": 5,
+        "playerStart": {
+            "x": 100,
+            "y": 60
+        },
+        "exit": {
+            "x": 520,
+            "y": 360,
+            "w": 40,
+            "h": 40
+        },
+        "coins": [
+            {
+                "x": 580,
+                "y": 160,
+                "r": 8
+            },
+            {
+                "x": 440,
+                "y": 120,
+                "r": 8
+            },
+            {
+                "x": 340,
+                "y": 240,
+                "r": 8
+            },
+            {
+                "x": 460,
+                "y": 60,
+                "r": 8
+            }
+        ],
+        "obstacles": [
+            {
+                "x": 360,
+                "y": 160,
+                "w": 60,
+                "h": 20,
+                "type": "bouncer"
+            },
+            {
+                "x": 180,
+                "y": 40,
+                "r": 15,
+                "type": "portal",
+                "color": "#9b59b6",
+                "target": {
+                    "x": 540,
+                    "y": 260
+                }
+            },
+            {
+                "x": 540,
+                "y": 260,
+                "r": 15,
+                "type": "portal",
+                "color": "#e67e22",
+                "target": {
+                    "x": 180,
+                    "y": 40
+                }
+            },
+            {
+                "x": 340,
+                "y": 60,
+                "r": 20,
+                "type": "puzzle_hole",
+                "puzzleId": 2,
+                "completed": false,
+                "id": "custom_hole_1782151222606"
+            },
+            {
+                "x": 540,
+                "y": 60,
+                "r": 18,
+                "type": "saw",
+                "vx": 2,
+                "vy": 2,
+                "angle": 695.8799999996571
+            },
+            {
+                "x": 100,
+                "y": 260,
+                "w": 60,
+                "h": 20,
+                "type": "bouncer"
+            },
+            {
+                "x": 460,
+                "y": 320,
+                "w": 60,
+                "h": 20,
+                "type": "fragile_bouncer",
+                "hitsRemaining": 2
+            },
+            {
+                "x": 520,
+                "y": 140,
+                "r": 15,
+                "type": "portal",
+                "color": "#9b59b6",
+                "target": {
+                    "x": 220,
+                    "y": 260
+                }
+            },
+            {
+                "x": 220,
+                "y": 260,
+                "r": 15,
+                "type": "portal",
+                "color": "#e67e22",
+                "target": {
+                    "x": 520,
+                    "y": 140
+                }
+            },
+            {
+                "x": 340,
+                "y": 280,
+                "w": 60,
+                "h": 40,
+                "type": "hazard"
+            },
+            {
+                "x": 304,
+                "y": 284,
+                "w": 32,
+                "h": 32,
+                "type": "boost",
+                "direction": {
+                    "x": 1,
+                    "y": 0
+                }
+            },
+            {
+                "x": 404,
+                "y": 284,
+                "w": 32,
+                "h": 32,
+                "type": "boost",
+                "direction": {
+                    "x": -1,
+                    "y": 0
+                }
+            }
+        ],
+        "name": "Preset Level 73"
+    },
+    {
+        "speed": 5,
+        "playerStart": {
+            "x": 60,
+            "y": 60
+        },
+        "exit": {
+            "x": 520,
+            "y": 160,
+            "w": 40,
+            "h": 40
+        },
+        "coins": [
+            {
+                "x": 440,
+                "y": 40,
+                "r": 8
+            },
+            {
+                "x": 500,
+                "y": 340,
+                "r": 8
+            },
+            {
+                "x": 120,
+                "y": 200,
+                "r": 8
+            },
+            {
+                "x": 220,
+                "y": 60,
+                "r": 8
+            },
+            {
+                "x": 40,
+                "y": 360,
+                "r": 8
+            }
+        ],
+        "obstacles": [
+            {
+                "x": 360,
+                "y": 120,
+                "w": 120,
+                "h": 20,
+                "type": "bouncer"
+            },
+            {
+                "x": 120,
+                "y": 240,
+                "w": 100,
+                "h": 100,
+                "type": "slow_zone",
+                "speedMultiplier": 0.5
+            },
+            {
+                "x": 270,
+                "y": 50,
+                "w": 120,
+                "h": 40,
+                "type": "fragile_bouncer",
+                "hitsRemaining": 2
+            },
+            {
+                "x": 540,
+                "y": 80,
+                "r": 15,
+                "type": "portal",
+                "color": "#9b59b6",
+                "target": {
+                    "x": 320,
+                    "y": 320
+                }
+            },
+            {
+                "x": 320,
+                "y": 320,
+                "r": 15,
+                "type": "portal",
+                "color": "#e67e22",
+                "target": {
+                    "x": 540,
+                    "y": 80
+                }
+            },
+            {
+                "x": 140,
+                "y": 120,
+                "w": 140,
+                "h": 20,
+                "type": "hazard"
+            },
+            {
+                "x": 440,
+                "y": 240,
+                "w": 20,
+                "h": 120,
+                "type": "hazard"
+            },
+            {
+                "x": 280,
+                "y": 220,
+                "r": 18,
+                "type": "saw",
+                "vx": 2,
+                "vy": 2,
+                "angle": 46.94000000000174
+            },
+            {
+                "x": 540,
+                "y": 260,
+                "r": 20,
+                "type": "puzzle_hole",
+                "puzzleId": 1,
+                "completed": false,
+                "id": "custom_hole_1782772342686"
+            },
+            {
+                "x": 140,
+                "y": 40,
+                "r": 20,
+                "type": "puzzle_hole",
+                "puzzleId": 2,
+                "completed": false,
+                "id": "custom_hole_1782772344368"
+            },
+            {
+                "x": 540,
+                "y": 260,
+                "r": 20,
+                "type": "puzzle_hole",
+                "puzzleId": 3,
+                "completed": false,
+                "id": "custom_hole_1782772350434"
+            }
+        ],
+        "name": "Preset Level 74"
+    }
+]

@@ -462,6 +462,15 @@
                     <button id="unlockAllItemsBtn" class="dev-btn" style="background-color: #2ecc71; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: opacity 0.2s;">Unlock All Items</button>
                     <button id="devOpenEditorBtn" class="dev-btn" style="background-color: #9b59b6; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: opacity 0.2s;">🛠️ Level Editor</button>
                 </div>
+                <div style="margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <label style="font-size: 0.9rem; color: #bdc3c7; display: flex; align-items: center; gap: 10px;">
+                        <span>Delete Preset Level:</span>
+                        <select id="devDeleteLevelSelect" style="background: #2c3e50; border: 1px solid #7f8c8d; color: white; padding: 6px; border-radius: 4px; font-size: 0.85rem; width: 180px;">
+                            <option value="">-- Choose Preset --</option>
+                        </select>
+                    </label>
+                    <button id="devDeleteLevelBtn" class="dev-btn" style="background-color: #c0392b; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: opacity 0.2s;">Delete Preset Level</button>
+                </div>
             </div>
         </div>
     </div>
@@ -503,8 +512,7 @@
                 <!-- Operations -->
                 <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
                     <button class="page-btn" id="editorPlaytestBtn" style="background: #2ecc71; color: white; padding: 6px; font-size: 0.85rem;">▶ Playtest</button>
-                    <button class="page-btn" id="editorSaveBtn" style="background: #e67e22; color: white; padding: 6px; font-size: 0.85rem;">💾 Save Level to Menu</button>
-                    <button class="page-btn hidden" id="editorSavePresetBtn" style="background: #e74c3c; color: white; padding: 6px; font-size: 0.85rem;">💾 Save as Permanent Preset</button>
+                    <button class="page-btn" id="editorSaveBtn" style="background: #e67e22; color: white; padding: 6px; font-size: 0.85rem;">💾 Save Level</button>
                     <div id="editorExportImportContainer" style="display: flex; gap: 6px;">
                         <button class="page-btn" id="editorExportBtn" style="flex: 1; font-size: 0.75rem; padding: 5px; background: #34495e;">Export</button>
                         <button class="page-btn" id="editorImportBtn" style="flex: 1; font-size: 0.75rem; padding: 5px; background: #34495e;">Import</button>
@@ -527,6 +535,18 @@
                     </label>
                     <button class="page-btn" id="editorDeleteSavedBtn" style="background: #c0392b; color: white; padding: 4px; font-size: 0.75rem;">Delete Loaded Level</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Prompt Modal -->
+    <div id="customPromptModal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 10000; backdrop-filter: blur(4px);">
+        <div class="menu-container" style="width: 360px; display: flex; flex-direction: column; gap: 16px; padding: 24px; text-align: center;">
+            <h3 id="customPromptTitle" style="margin: 0; font-size: 1.2rem; color: #9b59b6;">Prompt</h3>
+            <textarea id="customPromptInput" placeholder="..." style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 10px; border-radius: 6px; color: white; font-size: 0.9rem; width: calc(100% - 22px); height: 80px; resize: none; outline: none; font-family: monospace;"></textarea>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button class="page-btn" id="customPromptCancel" style="background: #e74c3c; font-size: 0.9rem; padding: 8px 16px;">Cancel</button>
+                <button class="page-btn" id="customPromptConfirm" style="background: #2ecc71; font-size: 0.9rem; padding: 8px 16px;">OK</button>
             </div>
         </div>
     </div>
